@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 
 export default function CreatePost() {
   const params = useParams();

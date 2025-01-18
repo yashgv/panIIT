@@ -1,7 +1,10 @@
+'use client';
+
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import picc from '@/app/picc.jpg'; 
+import { signIn } from 'next-auth/react';
+import picc from '@/app/picc.jpg';
 
 const LandingPage = () => {
   const services = [
@@ -49,14 +52,13 @@ const LandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="bg-white py-4 px-6 flex items-center justify-between shadow-sm">
         <Link href="/" className="text-2xl font-bold text-orange-500">
           Logo
         </Link>
-        
-        <nav className="flex items-center space-x-8">
+        <nav className="flex items-center space-x-4">
           <Link href="/about" className="text-gray-600 hover:text-orange-500 transition-colors">
             About
           </Link>
@@ -66,17 +68,17 @@ const LandingPage = () => {
           <Link href="/accounts" className="text-gray-600 hover:text-orange-500 transition-colors">
             Accounts
           </Link>
-          <Link 
-            href="/contact"
+          <button 
+            onClick={() => signIn()}
             className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors"
           >
-            Contact
-          </Link>
+            Sign In
+          </button>
         </nav>
       </header>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-orange-50 to-orange-100 py-20 px-6">
+      <section className="bg-gradient-to-r from-orange-50 to-orange-100 py-20 px-6 flex-1 flex items-center">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center">
           <div className="md:w-1/2">
             <h1 className="text-4xl md:text-5xl font-bold mb-6">

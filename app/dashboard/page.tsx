@@ -1,209 +1,215 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useState, useEffect } from 'react';
 import {
   Instagram,
   Twitter,
-  Youtube,
   Linkedin,
-  Calendar,
-  Clock,
-  Share2,
-  Settings,
-  Bell,
-  User,
+  LogOut,
   Plus,
-  HelpCircle,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { credentialsManager } from '@/utils/credentialsManager';
-import { CredentialsForm } from '@/components/CredentialsForm';
-import SocialMediaForm from '@/components/SocialMediaForm';
-import { PlatformCredentials } from '@/types';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+
+
+const platformConfig = {
+  instagram: {
+    name: 'Instagram',
+    icon: <Instagram className="w-6 h-6" />,
+    color: 'bg-gradient-to-r from-purple-500 to-pink-500',
+    fields: ['username', 'password'],
+    instructions: 'To connect your Instagram account:\n1. Use your Instagram username\n2. Use your Instagram password\n\nNote: For enhanced security, consider using an Instagram Professional account.',
+  },
+  twitter: {
+    name: 'Twitter',
+    icon: <Twitter className="w-6 h-6" />,
+    color: 'bg-blue-500',
+    fields: ['consumer_key', 'consumer_secret', 'access_token', 'access_token_secret'],
+    instructions: 'To get Twitter API credentials:\n1. Go to Twitter Developer Portal\n2. Create a new app\n3. Generate consumer keys and access tokens\n4. Copy the credentials here',
+  },
+  linkedin: {
+    name: 'LinkedIn',
+    icon: <Linkedin className="w-6 h-6" />,
+    color: 'bg-blue-700',
+    fields: ['access_token', 'owner_urn'],
+    instructions: 'To get LinkedIn API credentials:\n1. Go to LinkedIn Developer Portal\n2. Create a new app\n3. Request access token with required permissions\n4. Get your LinkedIn URN from profile settings',
+  },
+};
+
+import { getServerSession } from 'next-auth';
 
 export default function Dashboard() {
-  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
-  const [showCredentialsForm, setShowCredentialsForm] = useState(false);
+  const [socialConfigs, setSocialConfigs] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedPlatform, setSelectedPlatform] = useState(null);
+  const [credentials, setCredentials] = useState({});
+  const { toast } = useToast();
 
-  const platforms = [
-    { 
-      name: 'Instagram', 
-      icon: <Instagram className="w-8 h-8" />,
-      color: 'bg-pink-500',
-      description: 'Share photos and stories'
-    },
-    { 
-      name: 'X', 
-      icon: <Twitter className="w-8 h-8" />,
-      color: 'bg-blue-500',
-      description: 'Share quick updates'
-    },
-    { 
-      name: 'YouTube', 
-      icon: <Youtube className="w-8 h-8" />,
-      color: 'bg-red-500',
-      description: 'Share videos'
-    },
-    { 
-      name: 'LinkedIn', 
-      icon: <Linkedin className="w-8 h-8" />,
-      color: 'bg-blue-700',
-      description: 'Professional networking'
-    },
-  ];
 
-  const handlePlatformSelect = (platform: string) => {
-    if (selectedPlatform === platform) {
-      setSelectedPlatform(null);
-      return;
-    }
-    
-    setSelectedPlatform(platform);
-    
-    if (!credentialsManager.isPlatformConfigured(platform)) {
-      setShowCredentialsForm(true);
-    } else {
-      setShowCredentialsForm(false);
+  
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+  
+  const fetchUserData = async () => {
+    try {
+      let session = await getServerSession();
+      if (!session || !session.user || !session.user.id) {
+        return toast({
+          title: 'Error',
+          description: 'Unauthorized',
+          variant: 'destructive',
+        });
+      }
+      const response = await fetch(`http://localhost:3000/api/user/${session.user.id}`);
+      const data = await response.json();
+      setSocialConfigs(data.social_configs);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch user data',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleCredentialsSubmit = (credentials: PlatformCredentials) => {
-    if (selectedPlatform) {
-      credentialsManager.savePlatformCredentials(selectedPlatform, credentials);
-      setShowCredentialsForm(false);
-    }
-  };
+  const handleCredentialSubmit = async (platform) => {
+    try {
+      const response = await fetch('/api/user', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          [`${platform}_config`]: credentials,
+        }),
+      });
 
-  const handleResetCredentials = () => {
-    localStorage.removeItem('platformConfigs');
-    setShowCredentialsForm(false);
-    setSelectedPlatform(null);
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `${platformConfig[platform].name} credentials updated`,
+        });
+        fetchUserData();
+        setSelectedPlatform(null);
+        setCredentials({});
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update credentials',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-r from-slate-50 to-slate-100">
-      <header className="bg-white border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-4">
-              <Share2 className="h-6 w-6 text-blue-600" />
-              <h2 className="text-xl font-bold text-gray-800">Social Dashboard</h2>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="icon">
-                <Bell className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Settings className="h-5 w-5" />
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <User className="h-5 w-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>Profile</DropdownMenuItem>
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleResetCredentials}>
-                    Reset Platform Credentials
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>Logout</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Social Dashboard</h1>
+            <p className="text-slate-500 mt-2">Manage your social media connections</p>
           </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Choose Your Platform</h1>
+          <Button variant="outline" onClick={() => signOut()}>
+            <LogOut className="w-4 h-4 mr-2" />
+            Sign Out
+          </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          {platforms.map((platform) => (
-            <Card
-              key={platform.name}
-              className={`transition-all duration-300 hover:shadow-lg cursor-pointer ${
-                selectedPlatform === platform.name ? 'ring-2 ring-blue-500' : ''
-              }`}
-              onClick={() => handlePlatformSelect(platform.name)}
-            >
-              <CardHeader className="space-y-1">
-                <Badge className={`${platform.color} w-fit`}>
-                  {platform.name}
-                  {credentialsManager.isPlatformConfigured(platform.name) && 
-                    <span className="ml-2">✓</span>
-                  }
-                </Badge>
-                <div className="text-sm text-gray-500">{platform.description}</div>
-              </CardHeader>
-              <CardContent>
-                <div className="w-full p-6 hover:bg-slate-50">
-                  <div className="flex flex-col items-center">
-                    <div className="mb-4">{platform.icon}</div>
-                    <div className="font-medium text-lg">{platform.name}</div>
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {Object.entries(platformConfig).map(([key, platform]) => (
+            <Card key={key} className="overflow-hidden">
+              <CardHeader className={`${platform.color} text-white`}>
+                <div className="flex items-center justify-between">
+                  {platform.icon}
+                  {socialConfigs?.[key]?.lastUpdated && (
+                    <CheckCircle className="w-5 h-5" />
+                  )}
                 </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                <CardTitle className="mb-2">{platform.name}</CardTitle>
+                <CardDescription>
+                  {socialConfigs?.[key]?.lastUpdated
+                    ? 'Connected'
+                    : 'Not connected'}
+                </CardDescription>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant={socialConfigs?.[key]?.lastUpdated ? "outline" : "default"}
+                      className="mt-4 w-full"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      {socialConfigs?.[key]?.lastUpdated ? 'Update' : 'Connect'}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Connect {platform.name}</DialogTitle>
+                      <DialogDescription>
+                        Enter your credentials to connect your account
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Alert>
+                      <AlertDescription className="whitespace-pre-line">
+                        {platform.instructions}
+                      </AlertDescription>
+                    </Alert>
+                    <div className="space-y-4 mt-4">
+                      {platform.fields.map((field) => (
+                        <div key={field}>
+                          <Label htmlFor={field}>
+                            {field.split('_').join(' ').toUpperCase()}
+                          </Label>
+                          <Input
+                            id={field}
+                            type={field.includes('password') || field.includes('secret') ? 'password' : 'text'}
+                            onChange={(e) =>
+                              setCredentials((prev) => ({
+                                ...prev,
+                                [field]: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                      <Button
+                        className="w-full"
+                        onClick={() => handleCredentialSubmit(key)}
+                      >
+                        Save Credentials
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </CardContent>
             </Card>
           ))}
         </div>
-
-        {selectedPlatform && (
-          <div className="mt-8">
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold flex items-center gap-2">
-                <Calendar className="h-6 w-6" />
-                {showCredentialsForm 
-                  ? `Configure ${selectedPlatform} Account` 
-                  : `Create Post for ${selectedPlatform}`}
-              </h2>
-              <p className="text-sm text-gray-500 flex items-center gap-2 mt-2">
-                <Clock className="h-4 w-8" />
-                {showCredentialsForm 
-                  ? 'Please enter your account credentials' 
-                  : 'Configure your post details'}
-              </p>
-            </div>
-            
-            <Separator className="mb-6" />
-            
-            <div className="max-w-4xl">
-              {showCredentialsForm ? (
-                <CredentialsForm 
-                  platform={selectedPlatform} 
-                  onSubmit={handleCredentialsSubmit} 
-                />
-              ) : (
-                <SocialMediaForm platform={selectedPlatform} />
-              )}
-            </div>
-          </div>
-        )}
-
-        <Button
-          className="fixed bottom-8 right-8 rounded-full w-12 h-12"
-          variant="secondary"
-        >
-          <HelpCircle className="h-6 w-6" />
-        </Button>
-      </main>
+      </div>
     </div>
   );
 }

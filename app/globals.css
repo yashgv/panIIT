@@ -3,11 +3,14 @@
 @tailwind utilities;
 
 :root {
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 246, 248, 250;
   --primary-color: #f97316;
 }
 
 body {
-  @apply bg-white text-gray-900;
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
 }
 
 .gradient-bg {
@@ -19,13 +22,28 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Basic button styles */
-.btn {
-  @apply px-4 py-2 rounded-md transition-all duration-200;
+@layer base {
+  h1 {
+    @apply text-3xl font-bold mb-4;
+  }
+  h2 {
+    @apply text-2xl font-semibold mb-3;
+  }
+  h3 {
+    @apply text-xl font-medium mb-2;
+  }
 }
 
-.btn-primary {
-  @apply bg-orange-500 text-white hover:bg-orange-600;
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-md transition-colors;
+  }
+  .btn-primary {
+    @apply bg-blue-500 hover:bg-blue-600 text-white;
+  }
+  .card {
+    @apply bg-white rounded-lg shadow-md p-6;
+  }
 }
 
 /* Card hover effects */
