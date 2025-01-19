@@ -6,22 +6,24 @@ import UserModel from '@/models/User';
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
+  console.log('session', session);
   if (!session || !session.user || !session.user.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
-  const userId = session.user.id;
+  const userId = session.user.email;
 
   await dbConnect();
 
   try {
-    const user = await UserModel.findById(userId);
+    const user = await UserModel.findOne({ email: userId });
+    console.log('user', user);
     if (!user) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
     return NextResponse.json(user, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ message: 'Internal server error', error:error}, { status: 500 });
   }
 }
 
@@ -37,7 +39,7 @@ export async function PATCH(req: NextRequest) {
   await dbConnect();
 
   try {
-    const user = await UserModel.findById(userId);
+    const user = await UserModel.findOne({uid: userId});
     if (!user) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
@@ -52,6 +54,6 @@ export async function PATCH(req: NextRequest) {
     await user.save();
     return NextResponse.json(user, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ message: 'Internal server error', error:error }, { status: 500 });
   }
 }

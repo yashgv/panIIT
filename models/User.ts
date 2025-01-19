@@ -36,28 +36,22 @@ export interface IUser extends Document {
 const UserSchema = new Schema({
   uid: { 
     type: String, 
-    required: true 
   },
   username: { 
     type: String, 
-    required: true 
   },
   email: { 
-    type: String, 
-    required: true, 
+    type: String,  
     unique: true 
   },
   password: { 
-    type: String,
-    select: false  // Password will not be included in queries by default
+    type: String, // Password will not be included in queries by default
   },
   name: { 
     type: String, 
-    required: true 
   },
   image: { 
-    type: String, 
-    required: true 
+    type: String,
   },
   createdAt: { 
     type: Date, 
@@ -67,26 +61,22 @@ const UserSchema = new Schema({
     type: Date, 
     default: Date.now 
   },
-  isActive: { 
-    type: Boolean, 
-    default: true 
-  },
   social_configs: {
     instagram: {
-      username: { type: String, default: '' },
-      password: { type: String, default: '', select: false },
+      username: { type: String, default: undefined },
+      password: { type: String, default: undefined },
       lastUpdated: { type: Date }
     },
     twitter: {
-      consumer_key: { type: String, default: '', select: false },
-      consumer_secret: { type: String, default: '', select: false },
-      access_token: { type: String, default: '', select: false },
-      access_token_secret: { type: String, default: '', select: false },
+      consumer_key: { type: String, default: undefined},
+      consumer_secret: { type: String, default: undefined },
+      access_token: { type: String, default: undefined},
+      access_token_secret: { type: String, default: undefined},
       lastUpdated: { type: Date }
     },
     linkedin: {
-      access_token: { type: String, default: '', select: false },
-      owner_urn: { type: String, default: '' },
+      access_token: { type: String, default: undefined},
+      owner_urn: { type: String, default: undefined },
       lastUpdated: { type: Date }
     }
   }
