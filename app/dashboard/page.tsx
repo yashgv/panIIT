@@ -18,14 +18,13 @@ import {
   Twitter,
   Linkedin,
   Calendar,
-  Clock,
   Share2,
   Settings,
   Bell,
   User,
-  HelpCircle,
   ChevronRight,
   ExternalLink,
+  Power,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -40,6 +39,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import SocialMediaForm from '@/components/SocialMediaForm';
 import { useToast } from '@/hooks/use-toast';
 import SignOutButton from '@/components/auth/SignOutButton';
+import SocialPostCreator from '@/components/SocialPostCreator';
 
 interface UserData {
   social_configs: {
@@ -115,9 +115,10 @@ const platformInstructions = {
 export default function Dashboard() {
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [showCredentialsDialog, setShowCredentialsDialog] = useState(false);
+  const [showConnectConfirmDialog, setShowConnectConfirmDialog] = useState(false);
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showHelpDialog, setShowHelpDialog] = useState(false);
   const [credentials, setCredentials] = useState({});
   const { toast } = useToast();
 
@@ -184,24 +185,82 @@ export default function Dashboard() {
   const handlePlatformSelect = (platform: string) => {
     setSelectedPlatform(platform);
     if (!isPlatformConnected(platform)) {
-      setShowCredentialsDialog(true);
+      setShowConnectConfirmDialog(true);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      const response = await fetch('/api/user', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          [`${selectedPlatform?.toLowerCase()}_config`]: ""
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to disconnect platform');
+
+      await fetchUserData();
+      setShowDisconnectDialog(false);
+      toast({
+        title: "Success",
+        description: `${selectedPlatform} disconnected successfully!`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to disconnect platform",
+        variant: "destructive",
+      });
     }
   };
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     try {
-      const config = {
+      // First, verify the credentials
+      const verifyConfig = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials)
+      };
+      
+      try {
+      const verifyResponse = await fetch(`http://172.22.33.33:5000/api/verify/${selectedPlatform?.toLowerCase()}`, verifyConfig);
+      const verifyData = await verifyResponse.json();
+      console.log('verifyData', verifyData.valid);
+      if (!verifyData?.valid) {
+        alert(`{
+          title: "Invalid Credentials",
+          description: "Please check your credentials and try again",
+          variant: "destructive",
+        }`);
+        return;
+      }
+      alert(`{
+        title: "Successfully verified the credentials",
+        description: "Please check your credentials and try again",
+        variant: "Success",
+      }`);
+      } catch (error) {
+        console.error('Error verifying credentials:', error);
+      }
+      
+  
+      // If credentials are valid, proceed with saving them
+      const saveConfig = {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           [`${selectedPlatform?.toLowerCase()}_config`]: credentials
         })
       };
-
-      const response = await fetch('/api/user', config);
-      if (!response.ok) throw new Error('Failed to update credentials');
-
+  
+      const saveResponse = await fetch('/api/user', saveConfig);
+      if (!saveResponse.ok) throw new Error('Failed to update credentials');
+  
       await fetchUserData();
       setShowCredentialsDialog(false);
       setCredentials({});
@@ -209,10 +268,11 @@ export default function Dashboard() {
         title: "Success",
         description: `${selectedPlatform} connected successfully!`,
       });
+  
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to save credentials",
+        description: "Failed to save credentials. Please try again.",
         variant: "destructive",
       });
     }
@@ -253,8 +313,8 @@ export default function Dashboard() {
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="rounded-full">
-                    <User className="h-4 w-4" />
+                  <Button variant="ghost" size="sm" className="rounded-full p-0">
+                    <img src={userData?.image} className='h-8 w-8 rounded-full' alt="" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-48">
@@ -297,9 +357,25 @@ export default function Dashboard() {
                     >
                       {isConnected ? "Connected" : "Not Connected"}
                     </Badge>
-                    <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${platform.textColor} ${
-                      selectedPlatform === platform.name ? 'rotate-90' : 'group-hover:translate-x-1'
-                    }`} />
+                    <div className="flex items-center space-x-2">
+                      {isConnected && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="p-0 h-auto hover:bg-transparent"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPlatform(platform.name);
+                            setShowDisconnectDialog(true);
+                          }}
+                        >
+                          <Power className="w-4 h-4 text-red-500 hover:text-red-600" />
+                        </Button>
+                      )}
+                      <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${platform.textColor} ${
+                        selectedPlatform === platform.name ? 'rotate-90' : 'group-hover:translate-x-1'
+                      }`} />
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -318,127 +394,242 @@ export default function Dashboard() {
           })}
         </div>
 
-        {selectedPlatform && !isPlatformConnected(selectedPlatform) && (
-          <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <div className="flex items-center space-x-2">
-                  <div className={`p-2 rounded-lg bg-gradient-to-br ${
-                    platforms.find(p => p.name === selectedPlatform)?.color
-                  }`}>
-                    {platforms.find(p => p.name === selectedPlatform)?.icon}
-                  </div>
-                  <DialogTitle>
-                    {platformInstructions[selectedPlatform.toLowerCase()]?.title}
-                  </DialogTitle>
-                </div>
-                <DialogDescription>
-                  Follow the steps below to set up your {selectedPlatform} integration
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-4">
-                <Accordion type="single" collapsible className="w-full">
-                  <AccordionItem value="instructions">
-                    <AccordionTrigger className="text-sm font-medium">
-                      Setup Instructions
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <ol className="list-decimal pl-4 space-y-2 text-sm text-gray-600">
-                        {platformInstructions[selectedPlatform.toLowerCase()]?.steps.map((step, index) => (
-                          <li key={index}>{step}</li>
-                        ))}
-                      </ol>
-                      <a
-                        href={platformInstructions[selectedPlatform.toLowerCase()]?.helpLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-800 mt-2"
-                      >
-                        <span>Official Documentation</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-
-                <form onSubmit={handleCredentialsSubmit} className="space-y-4">
-                  {platformInstructions[selectedPlatform.toLowerCase()]?.fields.map((field) => (
-                    <div key={field.name} className="space-y-2">
-                      <Label htmlFor={field.name}>
-                        {field.label}
-                      </Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type={field.type}
-                        required
-                        onChange={handleInputChange}
-                        className="w-full"
-                      />
+        {/* Connect Confirmation Dialog */}
+        <Dialog open={showConnectConfirmDialog} onOpenChange={setShowConnectConfirmDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Connect {selectedPlatform}</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to connect your {selectedPlatform} account? You'll need to provide your credentials.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex space-x-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowConnectConfirmDialog(false);
+                  setSelectedPlatform(null);}}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowConnectConfirmDialog(false);
+                      setShowCredentialsDialog(true);
+                    }}
+                  >
+                    Continue
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+    
+            {/* Disconnect Confirmation Dialog */}
+            <Dialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Disconnect {selectedPlatform}</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to disconnect your {selectedPlatform} account? This will remove all saved credentials and settings.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="flex space-x-2 justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDisconnectDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDisconnect}
+                  >
+                    Disconnect
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+    
+            {/* Credentials Dialog */}
+            {selectedPlatform && !isPlatformConnected(selectedPlatform) && (
+              <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <div className="flex items-center space-x-2">
+                      <div className={`p-2 rounded-lg bg-gradient-to-br ${
+                        platforms.find(p => p.name === selectedPlatform)?.color
+                      }`}>
+                        {platforms.find(p => p.name === selectedPlatform)?.icon}
+                      </div>
+                      <DialogTitle>
+                        {platformInstructions[selectedPlatform.toLowerCase()]?.title}
+                      </DialogTitle>
                     </div>
-                  ))}
-                  
-                  <Alert>
-                    <AlertDescription>
-                      Your credentials are encrypted and stored securely. We never share your data with third parties.
-                    </AlertDescription>
-                  </Alert>
-
-                  <DialogFooter>
+                    <DialogDescription>
+                      Follow the steps below to set up your {selectedPlatform} integration
+                    </DialogDescription>
+                  </DialogHeader>
+    
+                  <div className="space-y-4">
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="instructions">
+                        <AccordionTrigger className="text-sm font-medium">
+                          Setup Instructions
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <ol className="list-decimal pl-4 space-y-2 text-sm text-gray-600">
+                            {platformInstructions[selectedPlatform.toLowerCase()]?.steps.map((step, index) => (
+                              <li key={index}>{step}</li>
+                            ))}
+                          </ol>
+                          <a
+                            href={platformInstructions[selectedPlatform.toLowerCase()]?.helpLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-800 mt-2"
+                          >
+                            <span>Official Documentation</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+    
+                    <form onSubmit={handleCredentialsSubmit} className="space-y-4">
+                      {platformInstructions[selectedPlatform.toLowerCase()]?.fields.map((field) => (
+                        <div key={field.name} className="space-y-2">
+                          <Label htmlFor={field.name}>
+                            {field.label}
+                          </Label>
+                          <Input
+                            id={field.name}
+                            name={field.name}
+                            type={field.type}
+                            required
+                            onChange={handleInputChange}
+                            className="w-full"
+                          />
+                        </div>
+                      ))}
+                      
+                      <Alert>
+                        <AlertDescription>
+                          Your credentials are encrypted and stored securely. We never share your data with third parties.
+                        </AlertDescription>
+                      </Alert>
+    
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setShowCredentialsDialog(false);
+                            setCredentials({});
+                          }}
+                          className="w-full sm:w-auto"
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          type="submit"
+                          className="w-full sm:w-auto"
+                        >
+                          Connect {selectedPlatform}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+      
+              {/* Disconnect Confirmation Dialog */}
+              <Dialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Disconnect {selectedPlatform}</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to disconnect your {selectedPlatform} account? This will remove all saved credentials and settings.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="flex space-x-2 justify-end">
                     <Button
-                      type="button"
                       variant="outline"
-                      onClick={() => setShowCredentialsDialog(false)}
-                      className="w-full sm:w-auto"
+                      onClick={() => setShowDisconnectDialog(false)}
                     >
                       Cancel
                     </Button>
-                    <Button 
-                      type="submit"
-                      className="w-full sm:w-auto"
+                    <Button
+                      variant="destructive"
+                      onClick={handleDisconnect}
                     >
-                      Connect {selectedPlatform}
+                      Disconnect
                     </Button>
                   </DialogFooter>
-                </form>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
+                </DialogContent>
+              </Dialog>
+      
+              {/* Connected Platform Details */}
+              {selectedPlatform && isPlatformConnected(selectedPlatform) && (
+                <Card className="mt-6">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-semibold flex items-center space-x-2">
+                        <span>{selectedPlatform} Integration</span>
+                        <Badge variant="success">Connected</Badge>
+                      </h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => setShowDisconnectDialog(true)}
+                      >
+                        <Power className="w-4 h-4 mr-2" />
+                        Disconnect
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm text-gray-600">Last Updated:</span>
+                        </div>
+                        <span className="text-sm">
+                          {userData?.social_configs[selectedPlatform.toLowerCase()]?.lastUpdated
+                            ? new Date(userData.social_configs[selectedPlatform.toLowerCase()].lastUpdated).toLocaleDateString()
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      
+                      <Separator />
+                      
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+                       {/* Social Post Creator */}
+                        <div className="mt-8">
+                          <h2 className="text-2xl font-semibold mb-6">Create New Post</h2>
+                          <SocialPostCreator />
+                        </div>
+            </main>
+          </div>
+        );
+      }
 
-        {selectedPlatform && isPlatformConnected(selectedPlatform) && (
-          <Card className="mt-6">
-            <CardHeader>
-              <h3 className="text-xl font-semibold flex items-center space-x-2">
-                <span>{selectedPlatform} Integration</span>
-                <Badge variant="success">Connected</Badge>
-              </h3>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-600">Last Updated:</span>
-                  </div>
-                  <span className="text-sm">
-                    {userData?.social_configs[selectedPlatform.toLowerCase()]?.lastUpdated
-                      ? new Date(userData.social_configs[selectedPlatform.toLowerCase()].lastUpdated).toLocaleDateString()
-                      : 'N/A'}
-                  </span>
-                </div>
-                
-                <Separator />
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <SocialMediaForm platform={selectedPlatform} userData={userData} onUpdate={fetchUserData} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </main>
-    </div>
-  );
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
